@@ -40,7 +40,7 @@
   # using timedatectl.
   time.timeZone = null;
 
-  users.mutableUsers = false;
+  users.mutableUsers = true; # So we can change passwords after install
   users.users.pi = {
     isNormalUser = true;
     extraGroups = [ 
@@ -48,8 +48,8 @@
       "networkmanager"
     ]; 
 
-    # TODO: this is bad form, switch to nix-sops?
-    hashedPassword = "$y$j9T$e/ww3cpvzIyWV2oz4VOd6/$6sMcui1lQ7tN7ZnjkJWySfaDbWAgs9V0tSuBTaViJu3";
+    # Can switch to nix-sops if I end up needing to ship more secrets
+    initialHashedPassword = "$y$j9T$e/ww3cpvzIyWV2oz4VOd6/$6sMcui1lQ7tN7ZnjkJWySfaDbWAgs9V0tSuBTaViJu3";
   };
 
   # List packages installed in system profile.
@@ -92,7 +92,6 @@
   #   enableSSHSupport = true;
   # };
 
-  # TODO (tff): get some default authorized keys on here to go faster
   # Enable the OpenSSH daemon.
   services.openssh.enable = true;
 
