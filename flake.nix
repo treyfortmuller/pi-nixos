@@ -54,7 +54,6 @@
             # self.nixosModules.default
             nixos-hardware.nixosModules.raspberry-pi-4
             ./jerry/configuration.nix
-            ./jerry/hardware-configuration.nix
           ];
           specialArgs = {
             inherit inputs;

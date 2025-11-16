@@ -130,12 +130,61 @@ sudo reboot now
 
 that succeeded lets gooo...
 
+---
 
+Now im gonna hardline this to my host and try to SSH in sowe can stop staring at a 4 inch screen
 
+On the pi I set the eth interface to be unmanaged in NetworkManager so we can manually add an ip
+
+```
+nmcli dev set end0 managed no
+
+ip addr add 192.168.10.7/24 dev end0
+```
+
+and similar on my host
+
+```
+13:33:30 (~) $ nmcli dev set enp0s20f0u1 managed no
+
+13:34:21 (~) $ sudo ip addr add 192.168.10.8/24 dev enp0s20f0u1
+```
+
+Easy money:
+
+```
+13:34:44 (~) $ ping 192.168.10.7
+PING 192.168.10.7 (192.168.10.7) 56(84) bytes of data.
+64 bytes from 192.168.10.7: icmp_seq=1 ttl=64 time=0.899 ms
+64 bytes from 192.168.10.7: icmp_seq=2 ttl=64 time=0.448 ms
+```
+
+We're in:
+
+```
+ssh alice@192.168.10.7
+```
+
+Now we'll copy off the configuration.nix and the hardware-configuration.nix, and include them in our flake-based, source controlled configuration for pis. We'll add in the nixos-hardware modules for the RPi4 in hopes to get a wider section of the device tree up and running from the start.
 
 #### SSH Access
 
 For a fresh NixOS install we'll add a password to the `nixos` user with `passwd` and then try to SSH onto this thing from my host. Then we'll go ship a new NixOS configuration to the device and nixos-rebui
+
+
+#### Deploying the flake-based configuration
+
+Note I had to reconnect to wifi (this time we get to use `nmcli` because we deployed NetworkManager on the install configuration, no more of that `wpa_supplicant` nonsense).
+
+Because I don't actually have an aarch64 build machine available at the moment, we're going to have to build on device. I literally `scp`'ed this whole repo over to the pi, and then
+
+```
+sudo nixos-rebuild boot --flake .#jerry
+
+sudo reboot now
+```
+
+That worked a charm. Static IP is set automatically, new user and password were setup, SSH success right away, and NetworkManager remembered our wifi connection.
 
 ### Resources
 
