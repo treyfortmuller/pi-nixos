@@ -172,6 +172,14 @@
   # hardware.raspberry-pi."4".apply-overlays-dtmerge.enable = true;
   # hardware.deviceTree.filter = "*-rpi-4-*.dtb";
 
+  # TODO: I have spidev0.0, don't think I need spidev0.1. Also things might have been working with
+  # only lwn,bk4 and without the spidev driver, experiment with minimizing this.
+  # 
+  # !!! First using compatible = "spidev" is strongly discouraged in using in device tree because it doesn't describe a real HW device.
+
+
+
+  # This was adapted from: https://github.com/NixOS/nixos-hardware/blob/master/raspberry-pi/4/tv-hat.nix
   hardware.deviceTree.overlays = [
    {
       name = "spi0-0cs.dtbo";
@@ -179,44 +187,74 @@
       /dts-v1/;
       /plugin/;
 
-      / {
-        compatible = \"brcm,bcm2835\";
+      /{
+          compatible = \"brcm,bcm2711\";
 
-        fragment@0 {
-          target = <&spi0_cs_pins>;
-          frag0: __overlay__ {
-            brcm,pins;
+          // --- Remove all hardware chip-select pins ---
+          // We keep only the SPI0 SCLK/MISO/MOSI pins.
+
+          fragment@0 {
+              target-path = \"/soc/gpio@7e200000\";
+              __overlay__ {
+                  spi0_pins: spi0_pins {
+                      brcm,pins = <9 10 11>;      // SPI0 SCLK, MOSI, MISO
+                      brcm,function = <4>;         // ALT0 for SPI0
+                  };
+
+                  // Do NOT define spi0_cs_pins at all
+                  // (hardware CS pins remain unused and free)
+              };
           };
-        };
 
-        fragment@1 {
-          target = <&spi0>;
-          __overlay__ {
-            cs-gpios;
-            status = \"okay\";
+          fragment@1 {
+              target-path = \"/soc/spi@7e204000\";
+              __overlay__ {
+                  pinctrl-names = \"default\";
+                  pinctrl-0 = <&spi0_pins>;
+
+                  /*
+                  * Use software chip select for both CS0 and CS1
+                  *
+                  * Setting each entry to <0> means:
+                  *   “no GPIO chip-select; let the SPI controller
+                  *    manage chip-select internally (software CS)”
+                  *
+                  * Required format: one entry per chip-select.
+                  */
+                  cs-gpios = <0>, <0>;
+
+                  status = \"okay\";
+
+                  // --- SPI Devices (keeps /dev/spidev0.0 and /dev/spidev0.1) ---
+                  spidev0: spidev@0 {
+                      compatible = \"lwn,bk4\", \"spidev\";
+                      reg = <0>;
+                      #address-cells = <1>;
+                      #size-cells = <0>;
+                      spi-max-frequency = <125000000>;
+                  };
+
+                  spidev1: spidev@1 {
+                      compatible = \"lwn,bk4\", \"spidev\";
+                      reg = <1>;
+                      #address-cells = <1>;
+                      #size-cells = <0>;
+                      spi-max-frequency = <125000000>;
+                  };
+              };
           };
-        };
-
-        fragment@2 {
-          target = <&spidev1>;
-          __overlay__ {
-            status = \"disabled\";
-          };
-        };
-
-        fragment@3 {
-          target = <&spi0_pins>;
-          __dormant__ {
-            brcm,pins = <10 11>;
-          };
-        };
-
-        __overrides__ {
-          no_miso = <0>,\"=3\";
-        };
       };";
     }
   ];
+
+
+  # TODO (tff): this is inky specific
+  users.groups = { spi = { }; };
+  services.udev.extraRules = ''
+    # Add the spidev0.0 device to a group called spi (by default its root) so that our user
+    # can be added to the group and make use of the device without elevated perms.
+    SUBSYSTEM=="spi-dev", KERNEL=="spidev0.0", GROUP="spi", MODE="0660"
+  '';
 
   # For more information, see `man configuration.nix` or https://nixos.org/manual/nixos/stable/options#opt-system.stateVersion .
   system.stateVersion = "25.05"; # Did you read the comment?
