@@ -50,6 +50,7 @@
       # TODO: split this out into wHAT configuration for the inky
       "gpio"
       "i2c"
+      "spi"
     ]; 
 
     # Can switch to nix-sops if I end up needing to ship more secrets
@@ -177,8 +178,6 @@
   # 
   # !!! First using compatible = "spidev" is strongly discouraged in using in device tree because it doesn't describe a real HW device.
 
-
-
   # This was adapted from: https://github.com/NixOS/nixos-hardware/blob/master/raspberry-pi/4/tv-hat.nix
   hardware.deviceTree.overlays = [
    {
@@ -253,7 +252,10 @@
   services.udev.extraRules = ''
     # Add the spidev0.0 device to a group called spi (by default its root) so that our user
     # can be added to the group and make use of the device without elevated perms.
-    SUBSYSTEM=="spi-dev", KERNEL=="spidev0.0", GROUP="spi", MODE="0660"
+    SUBSYSTEM=="spidev", KERNEL=="spidev0.0", GROUP="spi", MODE="0660"
+
+    # TODO: I think we can eliminate this
+    SUBSYSTEM=="spidev", KERNEL=="spidev0.1", GROUP="spi", MODE="0660"
   '';
 
   # For more information, see `man configuration.nix` or https://nixos.org/manual/nixos/stable/options#opt-system.stateVersion .

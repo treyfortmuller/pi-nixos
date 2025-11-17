@@ -535,4 +535,95 @@ So pin 8 is our problem child, which is supposed to be the SPI0 chip select pin.
 
 I'm pretty sure that the [`spi0-0cs-overlay.dts`](https://github.com/raspberrypi/linux/blob/rpi-6.1.y/arch/arm/boot/dts/overlays/spi0-0cs-overlay.dts) checked into the raspberrypi/linux repo sets no chip select pins, `*-1cs` sets one chip select pin, and `*-2cs` sets two. Inspecting the TV hat module, we can see both gpio lines 7 and 8 get set as chip select. So all we've got to do is disable that TV hat overlay, and instead apply our own device tree overlay (out of band of the nixos-hardware options) which perfectly matches the raspberrypi "upstream" overlay with 0 chip select chips. The kernel will get its hands off that GPIO line and the "Device busy" issue should go away.
 
+I ended up modifying the TV Hat overlay to exclude the chip select chips and the kernel is hands-off the GPIOs that paperwave needs now, nice. We get a new error around perms:
+
+```
+[pi@jerry:~/paperwave/target/debug]$ ./paperwave
+Ready to roll...
+== Probe Report ==
+EEPROM: 400x300 colour=7 pcb_variant=10.0 display_variant=24 (Red/Yellow wHAT (JD79668)) (via /dev/i2c-1)
+Display: JD79668 (400x300)
+I2C buses: /dev/i2c-1
+I2C probe results:
+  /dev/i2c-1: found 400x300 colour=7 pcb_variant=10.0 display_variant=24 (Red/Yellow wHAT (JD79668))
+SPI devices: /dev/spidev0.0 /dev/spidev0.1
+GPIO chips: /dev/gpiochip0 /dev/gpiochip1
+GPIO labels:
+  /dev/gpiochip0 -> gpiochip0 (pinctrl-bcm2711)
+  /dev/gpiochip1 -> gpiochip1 (raspberrypi-exp-gpio)
+
+Creating the display... the display spec we have is: Some(Jd79668 { width: 400, height: 300 })
+Error: IO error: Permission denied (os error 13)
+```
+
+Which I believe is because the SPI devices are owned by `root`:
+
+```
+[pi@jerry:~/paperwave/target/debug]$ ls -ls /dev/ | grep spi
+0 crw------- 1 root root  153,   0 Nov 16 22:26 spidev0.0
+0 crw------- 1 root root  153,   1 Nov 16 22:26 spidev0.1
+```
+
+I think the right way to fix that is to get the spi devices to be owned by some other group and then add the pi user to that group. For now, `sudo`. We get further!
+
+```
+Creating the display... the display spec we have is: Some(Jd79668 { width: 400, height: 300 })
+Error: Unsupported resolution 400x300
+```
+
+Ok hell ya, this is just a failure in application code, the `paperwave` library doesn't support my specific model of e-ink display so we'll have to go wrench on it, but I think all the hardware might be doing the right things now. We'll go back to that `pi` user perms on SPI devices.
+
+We'll cook up a udev rule to apply here, first inspecting some attributes of this device to match on:
+
+```
+[pi@jerry:~]$ udevadm info -a -n /dev/spidev0.0
+
+  looking at device '/devices/platform/soc/fe204000.spi/spi_master/spi0/spi0.0/spidev/spidev0.0':
+    KERNEL=="spidev0.0"
+    SUBSYSTEM=="spidev"
+    DRIVER==""
+    ATTR{power/control}=="auto"
+    ATTR{power/runtime_active_kids}=="0"
+    ATTR{power/runtime_active_time}=="0"
+    ATTR{power/runtime_enabled}=="disabled"
+    ATTR{power/runtime_status}=="unsupported"
+    ATTR{power/runtime_suspended_time}=="0"
+    ATTR{power/runtime_usage}=="0"
+```
+
+We'll ship this snippet to the config
+
+```
+  # TODO (tff): this is inky specific
+  users.groups = { spi = { }; };
+  services.udev.extraRules = ''
+    # Add the spidev0.0 device to a group called spi (by default its root) so that our user
+    # can be added to the group and make use of the device without elevated perms.
+    SUBSYSTEM=="spidev", KERNEL=="spidev0.0", GROUP="spi", MODE="0660"
+  '';
+```
+
+And we'll also need to add `users.users.pi.extraGroups = [ "spi" ];` - this is going to need a refactor after we get this done to factor out the complexity of the inky-specific configuration into its own module, probably behind a `mkEnableOption`, but we'll cross that bridge after we've got some ink on the display.
+
+Say it again bart! `nixos-rebuild boot --flake .#`
+
+Now we're cooking with gas
+
+```
+[pi@jerry:~]$ ll /dev/ | grep spi
+crw-rw---- 1 root spi   153,   0 Nov 16 23:00 spidev0.0
+
+[pi@jerry:~/pi-nixos]$ groups pi
+pi : users wheel networkmanager spi i2c gpio
+```
+
+So now we need to confirm we made it past the permission denied error in `paperwave`
+
+```
+Creating the display... the display spec we have is: Some(Jd79668 { width: 400, height: 300 })
+Error: Unsupported resolution 400x300
+```
+
+Money... time to just hack on paperwave to support my 400x300 e-ink display.
+
 
