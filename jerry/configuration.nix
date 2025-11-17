@@ -46,6 +46,10 @@
     extraGroups = [ 
       "wheel"
       "networkmanager"
+
+      # TODO: split this out into wHAT configuration for the inky
+      "gpio"
+      "i2c"
     ]; 
 
     # Can switch to nix-sops if I end up needing to ship more secrets
@@ -62,6 +66,10 @@
     htop
     jq
     git
+
+    # TODO: inky things, split these out
+    i2c-tools
+    libgpiod
   ];
 
   # Configure network proxy if necessary
@@ -144,11 +152,6 @@
   # hardware.raspberry-pi."4".xhci
   hardware.raspberry-pi."4" = {
     gpio.enable = true;
-    
-    i2c0 = {
-      enable = true;
-      frequency = null; # TODO: what should this be?
-    };
 
     i2c1 = {
       enable = true;

@@ -260,10 +260,203 @@ https://github.com/NixOS/nixos-hardware/blob/master/raspberry-pi/4/tv-hat.nix
 
 So I'm going to roll NixOS by throwing the kitchen sink at this thing, we'll enable GPIOs, both i2c buses, and the TV hat. Then we'll check on loaded kernel modules, `/dev` paths, and we'll check back in with `paperwave`'s probe CLI.
 
+After the rebuild boot we've got
+
+```
+[pi@jerry:~/paperwave]$ stat /dev/spidev0.1
+
+[pi@jerry:~/paperwave]$ stat /dev/i2c-
+i2c-1   i2c-22
+```
+
+and 
+
+```
+[pi@jerry:~/paperwave]$ lsmod | grep spi
+cxd2880_spi            28672  0
+dvb_core              176128  1 cxd2880_spi
+spidev                 28672  0
+spi_bcm2835            28672  0
 
 
+[pi@jerry:~/paperwave]$ lsmod | grep i2c
+i2c_bcm2835            20480  0
+i2c_dev                24576  0
+```
 
+Getting back to paperwave:
 
+```
+[pi@jerry:~/paperwave]$ cargo run -- --detect-only --debug
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.14s
+     Running `target/debug/paperwave --detect-only --debug`
+== Probe Report ==
+EEPROM: not found
+Display: not detected (fallback to 600x448)
+I2C buses: /dev/i2c-1 /dev/i2c-22
+I2C probe results:
+  /dev/i2c-1: no response / not available
+  /dev/i2c-22: no response / not available
+SPI devices: /dev/spidev0.1
+GPIO chips: /dev/gpiochip0 /dev/gpiochip1
+```
 
+Closer! I've got an idea about the i2c buses, I think we need to make the `pi` a member of the `i2c` group, running this with `sudo` for now:
 
+```
+[pi@jerry:~/paperwave/target/debug]$ sudo ./paperwave --detect-only --debug
+[sudo] password for pi:
+== Probe Report ==
+EEPROM: 400x300 colour=7 pcb_variant=10.0 display_variant=24 (Red/Yellow wHAT (JD79668)) (via /dev/i2c-1)
+Display: not detected (fallback to 600x448)
+I2C buses: /dev/i2c-1 /dev/i2c-22
+I2C probe results:
+  /dev/i2c-1: found 400x300 colour=7 pcb_variant=10.0 display_variant=24 (Red/Yellow wHAT (JD79668))
+  /dev/i2c-22: error Connection timed out (os error 110)
+SPI devices: /dev/spidev0.1
+GPIO chips: /dev/gpiochip0 /dev/gpiochip1
+GPIO labels:
+  /dev/gpiochip0 -> gpiochip0 (pinctrl-bcm2711)
+  /dev/gpiochip1 -> gpiochip1 (raspberrypi-exp-gpio)
+```
+
+LFG we're gonna be in business here.
+
+Trying to update the display for the first time:
+
+```
+[pi@jerry:~/paperwave/target/debug]$ sudo ./paperwave
+Error: GPIO error: Ioctl to get line handle failed: EBUSY: Device or resource busy
+```
+
+Lets see if we can grab some info on who's using my GPIOs: `nix-shell -p libgpiod`
+
+```
+[nix-shell:~/paperwave/target/debug]$ sudo gpioinfo -c gpiochip0
+gpiochip0 - 58 lines:
+	line   0:	"ID_SDA"        	input
+	line   1:	"ID_SCL"        	input
+	line   2:	"GPIO2"         	input
+	line   3:	"GPIO3"         	input
+	line   4:	"GPIO4"         	input
+	line   5:	"GPIO5"         	input
+	line   6:	"GPIO6"         	input
+	line   7:	"GPIO7"         	output active-low consumer="spi0 CS1"
+	line   8:	"GPIO8"         	output active-low consumer="spi0 CS0"
+	line   9:	"GPIO9"         	input
+	line  10:	"GPIO10"        	input
+	line  11:	"GPIO11"        	input
+	line  12:	"GPIO12"        	input
+	line  13:	"GPIO13"        	input
+	line  14:	"GPIO14"        	input
+	line  15:	"GPIO15"        	input
+	line  16:	"GPIO16"        	input
+	line  17:	"GPIO17"        	input
+	line  18:	"GPIO18"        	input
+	line  19:	"GPIO19"        	input
+	line  20:	"GPIO20"        	input
+	line  21:	"GPIO21"        	input
+	line  22:	"GPIO22"        	input
+	line  23:	"GPIO23"        	input
+	line  24:	"GPIO24"        	input
+	line  25:	"GPIO25"        	input
+	line  26:	"GPIO26"        	input
+	line  27:	"GPIO27"        	input
+	line  28:	"RGMII_MDIO"    	input
+	line  29:	"RGMIO_MDC"     	input
+	line  30:	"CTS0"          	input
+	line  31:	"RTS0"          	input
+	line  32:	"TXD0"          	input
+	line  33:	"RXD0"          	input
+	line  34:	"SD1_CLK"       	input
+	line  35:	"SD1_CMD"       	input
+	line  36:	"SD1_DATA0"     	input
+	line  37:	"SD1_DATA1"     	input
+	line  38:	"SD1_DATA2"     	input
+	line  39:	"SD1_DATA3"     	input
+	line  40:	"PWM0_MISO"     	input
+	line  41:	"PWM1_MOSI"     	input
+	line  42:	"STATUS_LED_G_CLK"	output consumer="ACT"
+	line  43:	"SPIFLASH_CE_N" 	input
+	line  44:	"SDA0"          	input
+	line  45:	"SCL0"          	input
+	line  46:	"RGMII_RXCLK"   	input
+	line  47:	"RGMII_RXCTL"   	input
+	line  48:	"RGMII_RXD0"    	input
+	line  49:	"RGMII_RXD1"    	input
+	line  50:	"RGMII_RXD2"    	input
+	line  51:	"RGMII_RXD3"    	input
+	line  52:	"RGMII_TXCLK"   	input
+	line  53:	"RGMII_TXCTL"   	input
+	line  54:	"RGMII_TXD0"    	input
+	line  55:	"RGMII_TXD1"    	input
+	line  56:	"RGMII_TXD2"    	input
+	line  57:	"RGMII_TXD3"    	input
+
+[nix-shell:~/paperwave/target/debug]$ sudo gpioinfo -c gpiochip1
+gpiochip1 - 8 lines:
+	line   0:	"BT_ON"         	output consumer="shutdown"
+	line   1:	"WL_ON"         	output
+	line   2:	"PWR_LED_OFF"   	output active-low consumer="PWR"
+	line   3:	"GLOBAL_RESET"  	output
+	line   4:	"VDD_SD_IO_SEL" 	output consumer="vdd-sd-io"
+	line   5:	"CAM_GPIO"      	output consumer="cam1_regulator"
+	line   6:	"SD_PWR_ON"     	output consumer="regulator-sd-vcc"
+	line   7:	"SD_OC_N"       	input
+```
+
+Ok we'll probably need better logs from paperwave about which GPIO chip and line is "busy" to dive into that, no problem. Lets table that for now. Checking on the groups which own the devices I'm interested in:
+
+```
+[nix-shell:~/paperwave/target/debug]$ ls -la /dev | grep "spi\|gpio\|i2c"
+crw-rw----  1 root gpio  254,   0 Nov 16 19:16 gpiochip0
+crw-rw----  1 root gpio  254,   1 Nov 16 19:16 gpiochip1
+crw-rw----  1 root gpio  237,   0 Nov 16 19:16 gpiomem
+crw-rw----  1 root i2c    89,   1 Nov 16 19:16 i2c-1
+crw-rw----  1 root i2c    89,  22 Nov 16 19:16 i2c-22
+crw-------  1 root root  153,   0 Nov 16 19:16 spidev0.1
+```
+
+Ok so we need to be in gpio, i2c, and then the spi device is root:root so we'll need to take special care of that. Gonna apply this diff turning off i2c0 since it was explicitly called out in the inky python library setup:
+
+```
+diff --git a/jerry/configuration.nix b/jerry/configuration.nix
+index 22e9370..b233188 100644
+--- a/jerry/configuration.nix
++++ b/jerry/configuration.nix
+@@ -46,6 +46,10 @@
+     extraGroups = [
+       "wheel"
+       "networkmanager"
++
++      # TODO: split this out into wHAT configuration for the inky
++      "gpio"
++      "i2c"
+     ];
+
+     # Can switch to nix-sops if I end up needing to ship more secrets
+@@ -62,6 +66,10 @@
+     htop
+     jq
+     git
++
++    # TODO: inky things, split these out
++    i2c-tools
++    libgpiod
+   ];
+
+   # Configure network proxy if necessary
+@@ -144,11 +152,6 @@
+   # hardware.raspberry-pi."4".xhci
+   hardware.raspberry-pi."4" = {
+     gpio.enable = true;
+-
+-    i2c0 = {
+-      enable = true;
+-      frequency = null; # TODO: what should this be?
+-    };
+
+     i2c1 = {
+       enable = true;
+```
 
