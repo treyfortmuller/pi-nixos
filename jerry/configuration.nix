@@ -227,6 +227,11 @@
                       #size-cells = <0>;
                       spi-max-frequency = <125000000>;
                   };
+
+                  // Disable spidev1 (CE1) explicitly
+                  spidev1: spidev@1 {
+                      status = \"disabled\";
+                  };
               };
           };
       };";
