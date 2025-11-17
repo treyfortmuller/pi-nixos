@@ -61,6 +61,7 @@
     tmux
     htop
     jq
+    git
   ];
 
   # Configure network proxy if necessary
@@ -118,6 +119,43 @@
       "nix-command"
       "flakes"
     ];
+  };
+
+  # RPi specifics provided by nixos-hardware:
+  # 
+  # nix-repl> nixosConfigurations.jerry.options.hardware.raspberry-pi.\"4\".
+  # hardware.raspberry-pi."4".apply-overlays-dtmerge
+  # hardware.raspberry-pi."4".audio
+  # hardware.raspberry-pi."4".backlight
+  # hardware.raspberry-pi."4".bluetooth
+  # hardware.raspberry-pi."4".digi-amp-plus
+  # hardware.raspberry-pi."4".dwc2
+  # hardware.raspberry-pi."4".fkms-3d
+  # hardware.raspberry-pi."4".gpio
+  # hardware.raspberry-pi."4".i2c0
+  # hardware.raspberry-pi."4".i2c1
+  # hardware.raspberry-pi."4".leds
+  # hardware.raspberry-pi."4".poe-hat
+  # hardware.raspberry-pi."4".poe-plus-hat
+  # hardware.raspberry-pi."4".pwm0
+  # hardware.raspberry-pi."4".tc358743
+  # hardware.raspberry-pi."4".touch-ft5406
+  # hardware.raspberry-pi."4".tv-hat
+  # hardware.raspberry-pi."4".xhci
+  hardware.raspberry-pi."4" = {
+    gpio.enable = true;
+    
+    i2c0 = {
+      enable = true;
+      frequency = null; # TODO: what should this be?
+    };
+
+    i2c1 = {
+      enable = true;
+      frequency = null; # TODO: what should this be?
+    };
+
+    tv-hat.enable = true;
   };
 
   # For more information, see `man configuration.nix` or https://nixos.org/manual/nixos/stable/options#opt-system.stateVersion .

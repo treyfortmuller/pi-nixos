@@ -191,3 +191,79 @@ That worked a charm. Static IP is set automatically, new user and password were 
 * This is an alternative project for more complete RPi NixOS support, might be worth looking at in the future, its hardware + package overlays + kernel/firmware considerations + SD image builds, the whole nine: https://github.com/nvmd/nixos-raspberrypi/tree/develop
 
 
+---
+
+### Getting SPI enabled in the Pi Device Tree
+
+Unfortunately nixos-hardware provides no options for applying a deviceTree overlay to enable SPI communication on the PI:
+
+```
+nix-repl> nixosConfigurations.jerry.options.hardware.raspberry-pi.\"4\".
+nixosConfigurations.jerry.options.hardware.raspberry-pi."4".apply-overlays-dtmerge
+nixosConfigurations.jerry.options.hardware.raspberry-pi."4".audio
+nixosConfigurations.jerry.options.hardware.raspberry-pi."4".backlight
+nixosConfigurations.jerry.options.hardware.raspberry-pi."4".bluetooth
+nixosConfigurations.jerry.options.hardware.raspberry-pi."4".digi-amp-plus
+nixosConfigurations.jerry.options.hardware.raspberry-pi."4".dwc2
+nixosConfigurations.jerry.options.hardware.raspberry-pi."4".fkms-3d
+nixosConfigurations.jerry.options.hardware.raspberry-pi."4".gpio
+nixosConfigurations.jerry.options.hardware.raspberry-pi."4".i2c0
+nixosConfigurations.jerry.options.hardware.raspberry-pi."4".i2c1
+nixosConfigurations.jerry.options.hardware.raspberry-pi."4".leds
+nixosConfigurations.jerry.options.hardware.raspberry-pi."4".poe-hat
+nixosConfigurations.jerry.options.hardware.raspberry-pi."4".poe-plus-hat
+nixosConfigurations.jerry.options.hardware.raspberry-pi."4".pwm0
+nixosConfigurations.jerry.options.hardware.raspberry-pi."4".tc358743
+nixosConfigurations.jerry.options.hardware.raspberry-pi."4".touch-ft5406
+nixosConfigurations.jerry.options.hardware.raspberry-pi."4".tv-hat
+nixosConfigurations.jerry.options.hardware.raspberry-pi."4".xhci
+```
+
+Pimoroni has an extensive and probably well-tested high level library for interacting with their displays in python. The `install.sh` is extremely scary and assumes you're running Raspian. Naturally I want to hack in rust, I found this project which looks promising:
+
+https://docs.rs/crate/paperwave/0.2.0/source/README.md
+
+had to jack the source from the docs page because the GH link is a 404
+
+I made a flake-based rust project out of it with support for x86 and aarch64 linux and ran the CLI, building on the target hardware for now. We got results we basically expected.
+
+```
+cargo run -- --detect-only --debug
+
+== Probe Report ==
+EEPROM: not found
+Display: not detected (fallback to 600x448)
+I2C buses: none detected
+SPI devices: none detected
+GPIO chips: /dev/gpiochip0 /dev/gpiochip1
+```
+
+I'm going to try enabling gpio, and the i2c devices via the hardware.raspberry-pi."4" options provided by nixos-hardware and we'll see if we get some i2c buses. Then we're going to have to tackle the problem of SPI devices, which I think is going to require some manually applied device tree overlays, yew!
+
+The i2c bus options have an interface clock-frequency setting to configure, I don't know what those should be so we'll leave them at `null` for now, hopefully we'll be able to at least see the devices in `/dev` and spot some relevant kernel modules in `lsmod` - I literally can't find a datasheet for this e-ink display so we'll dig through the source of their python library or its imperative setup script for deets.
+
+Here's a hint, we've got the config.txt referenced here with RPi OS flavored incantations for manipulating the device tree:
+
+https://github.com/pimoroni/inky/blob/main/pyproject.toml#L125-L129
+
+```
+configtxt = [
+    "dtoverlay=i2c1",
+    "dtoverlay=i2c1-pi5",
+    "dtoverlay=spi0-0cs"
+]
+```
+
+I also noticed this `tv-hate.nix` module enables the referenced `spi0-0cs` overlay:
+
+https://github.com/NixOS/nixos-hardware/blob/master/raspberry-pi/4/tv-hat.nix
+
+So I'm going to roll NixOS by throwing the kitchen sink at this thing, we'll enable GPIOs, both i2c buses, and the TV hat. Then we'll check on loaded kernel modules, `/dev` paths, and we'll check back in with `paperwave`'s probe CLI.
+
+
+
+
+
+
+
+
