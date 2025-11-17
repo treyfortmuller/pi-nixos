@@ -9,12 +9,13 @@
   };
 
   outputs =
-    { self
-    , nixpkgs
-    , nixos-hardware
-    , flake-utils
+    {
+      self,
+      nixpkgs,
+      nixos-hardware,
+      flake-utils,
       # , nixpkgs-unstable
-    , ...
+      ...
     }@inputs:
     let
       system = "x86_64-linux";
@@ -34,7 +35,7 @@
 
       nixosConfigurations = {
         # Our hostname naming conventions for pi projects will be... Seinfeld characters, here's a list:
-        # 
+        #
         # Main Characters
         #   Jerry Seinfeld — Comedian, neat freak, observer of life’s absurdities.
         #   George Costanza — Neurotic, insecure, perpetually disgruntled best friend.

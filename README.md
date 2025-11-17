@@ -460,3 +460,79 @@ index 22e9370..b233188 100644
        enable = true;
 ```
 
+Ok those changes have taken place:
+
+```
+[pi@jerry:~]$ groups pi
+pi : users wheel networkmanager i2c gpio
+
+[pi@jerry:~]$ i2cdetect -F 1
+Functionalities implemented by /dev/i2c-1:
+I2C                              yes
+SMBus Quick Command              yes
+SMBus Send Byte                  yes
+SMBus Receive Byte               yes
+SMBus Write Byte                 yes
+SMBus Read Byte                  yes
+SMBus Write Word                 yes
+SMBus Read Word                  yes
+SMBus Process Call               yes
+SMBus Block Write                yes
+SMBus Block Read                 no
+SMBus Block Process Call         no
+SMBus PEC                        yes
+I2C Block Write                  yes
+I2C Block Read                   yes
+SMBus Host Notify                no
+10-bit addressing                no
+Target mode                      no
+
+[pi@jerry:~]$ i2cdetect -F 22
+Error: Could not open file `/dev/i2c-22' or `/dev/i2c/22': No such file or directory
+```
+
+i2c-22 is gone now, I have a hunch enabling those i2c buses might have been stomping on extra GPIOs that the paperwave needs.
+
+Also, we can query a gpiochip without elevating to sudo now:
+
+```
+[pi@jerry:~]$ gpioinfo -c gpiochip0
+gpiochip0 - 58 lines:
+	line   0:	"ID_SDA"        	input
+	line   1:	"ID_SCL"        	input
+	line   2:	"GPIO2"         	input
+	line   3:	"GPIO3"         	input
+...
+```
+
+Finally found a fucking datasheet for this thing, its called a JD79668
+
+https://files.waveshare.com/wiki/4.2inch%20e-Paper%20Module%20(G)/4.2inch_e-Paper_(G).pdf
+
+Still getting the resource busy issue, reading through the source in `paperwave` I can see we're trying to manipulate 4 different GPIO pins: gpiochip0 line 8, 22, 27, and 17. These correspond with the docs from Pimoroni on the pinout for the display here: https://pinout.xyz/pinout/inky_what
+
+I wasn't getting clear error messages from `paperwave` so I narrowed down the problem child by manually manipulating GPIOs with `gpioset`
+
+```
+[pi@jerry:~/paperwave/target/debug]$ sudo gpioset -c gpiochip0 8=on
+[sudo] password for pi:
+gpioset: unable to request lines on chip '/dev/gpiochip0': Device or resource busy
+
+[pi@jerry:~/paperwave/target/debug]$ sudo gpioset -c gpiochip0 9=on
+^C
+
+[pi@jerry:~/paperwave/target/debug]$ sudo gpioset -c gpiochip0 22=on
+^C
+
+[pi@jerry:~/paperwave/target/debug]$ sudo gpioset -c gpiochip0 27=on
+^C
+
+[pi@jerry:~/paperwave/target/debug]$ sudo gpioset -c gpiochip0 17=on
+^C
+```
+
+So pin 8 is our problem child, which is supposed to be the SPI0 chip select pin... So whats happening here is the spi driver the kernel loaded is laying claim to pin 8 as a chip select pin, but paperwave wants to handle chip selection manually, so its trying to manipulate it as a plain-old GPIO. This has to do with the TV hat device tree overlay we applied...
+
+I'm pretty sure that the [`spi0-0cs-overlay.dts`](https://github.com/raspberrypi/linux/blob/rpi-6.1.y/arch/arm/boot/dts/overlays/spi0-0cs-overlay.dts) checked into the raspberrypi/linux repo sets no chip select pins, `*-1cs` sets one chip select pin, and `*-2cs` sets two. Inspecting the TV hat module, we can see both gpio lines 7 and 8 get set as chip select. So all we've got to do is disable that TV hat overlay, and instead apply our own device tree overlay (out of band of the nixos-hardware options) which perfectly matches the raspberrypi "upstream" overlay with 0 chip select chips. The kernel will get its hands off that GPIO line and the "Device busy" issue should go away.
+
+

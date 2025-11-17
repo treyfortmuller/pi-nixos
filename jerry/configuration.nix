@@ -157,9 +157,66 @@
       enable = true;
       frequency = null; # TODO: what should this be?
     };
-
-    tv-hat.enable = true;
   };
+
+  # For the inky e-ink displays we need SPI comms with zero chip select pins enabled, our userspace library
+  # will handle chip selection for us. We should end up with SPI drivers show up in lsmod, and a SPI character
+  # device in /dev, but gpiochip0 lines 7 and 8 should not be claimed by a kernel driver.
+  # Here's the upstream overlay which achieves this, we're gonna drop it in verbatim, and only try 
+  # `hardware.raspberry-pi."4".apply-overlays-dtmerge.enable = true;` if we need to.
+  # 
+  # https://github.com/raspberrypi/linux/blob/rpi-6.1.y/arch/arm/boot/dts/overlays/spi0-0cs-overlay.dts
+
+  # Other configurations that the TV hat option applied...
+  # 
+  # hardware.raspberry-pi."4".apply-overlays-dtmerge.enable = true;
+  # hardware.deviceTree.filter = "*-rpi-4-*.dtb";
+
+  hardware.deviceTree.overlays = [
+   {
+      name = "spi0-0cs.dtbo";
+      dtsText = "
+      /dts-v1/;
+      /plugin/;
+
+      / {
+        compatible = \"brcm,bcm2835\";
+
+        fragment@0 {
+          target = <&spi0_cs_pins>;
+          frag0: __overlay__ {
+            brcm,pins;
+          };
+        };
+
+        fragment@1 {
+          target = <&spi0>;
+          __overlay__ {
+            cs-gpios;
+            status = \"okay\";
+          };
+        };
+
+        fragment@2 {
+          target = <&spidev1>;
+          __overlay__ {
+            status = \"disabled\";
+          };
+        };
+
+        fragment@3 {
+          target = <&spi0_pins>;
+          __dormant__ {
+            brcm,pins = <10 11>;
+          };
+        };
+
+        __overrides__ {
+          no_miso = <0>,\"=3\";
+        };
+      };";
+    }
+  ];
 
   # For more information, see `man configuration.nix` or https://nixos.org/manual/nixos/stable/options#opt-system.stateVersion .
   system.stateVersion = "25.05"; # Did you read the comment?
