@@ -173,11 +173,6 @@
   # hardware.raspberry-pi."4".apply-overlays-dtmerge.enable = true;
   # hardware.deviceTree.filter = "*-rpi-4-*.dtb";
 
-  # TODO: I have spidev0.0, don't think I need spidev0.1. Also things might have been working with
-  # only lwn,bk4 and without the spidev driver, experiment with minimizing this.
-  # 
-  # !!! First using compatible = "spidev" is strongly discouraged in using in device tree because it doesn't describe a real HW device.
-
   # This was adapted from: https://github.com/NixOS/nixos-hardware/blob/master/raspberry-pi/4/tv-hat.nix
   hardware.deviceTree.overlays = [
    {
@@ -224,18 +219,10 @@
 
                   status = \"okay\";
 
-                  // --- SPI Devices (keeps /dev/spidev0.0 and /dev/spidev0.1) ---
+                  // --- SPI Devices (keeps /dev/spidev0.0 and not /dev/spidev0.1) ---
                   spidev0: spidev@0 {
-                      compatible = \"lwn,bk4\", \"spidev\";
+                      compatible = \"lwn,bk4\";
                       reg = <0>;
-                      #address-cells = <1>;
-                      #size-cells = <0>;
-                      spi-max-frequency = <125000000>;
-                  };
-
-                  spidev1: spidev@1 {
-                      compatible = \"lwn,bk4\", \"spidev\";
-                      reg = <1>;
                       #address-cells = <1>;
                       #size-cells = <0>;
                       spi-max-frequency = <125000000>;
@@ -253,9 +240,6 @@
     # Add the spidev0.0 device to a group called spi (by default its root) so that our user
     # can be added to the group and make use of the device without elevated perms.
     SUBSYSTEM=="spidev", KERNEL=="spidev0.0", GROUP="spi", MODE="0660"
-
-    # TODO: I think we can eliminate this
-    SUBSYSTEM=="spidev", KERNEL=="spidev0.1", GROUP="spi", MODE="0660"
   '';
 
   # For more information, see `man configuration.nix` or https://nixos.org/manual/nixos/stable/options#opt-system.stateVersion .
