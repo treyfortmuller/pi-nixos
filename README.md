@@ -626,4 +626,21 @@ Error: Unsupported resolution 400x300
 
 Money... time to just hack on paperwave to support my 400x300 e-ink display.
 
+Ok so on further investigation after overcoming the resolution support issue, it turns out the other two e-ink display panels that are supported in this crate are made by totally different manufacturers, so we'll actually have to dive into the datasheet for our panel to remap the pins properly, was kinda hoping to get that for free but fine.
 
+
+Ok so its a full day later and I had to pretty heavily slice and dice into paperwave to have any success, including a small rewrite of their SPI interface code, I also switched the GPIO library from gpio-cdev to gpiocdev so that I could express the pull-up bias on the busy pin. I've got the display responding, but test images are managled so there's still bugs (or otherwise incompatibilities I haven't discovered in my support for the jd79668 controller) in paperwave. My controller also expects 2-bits per pixel rather than 4-bits per pixel (I think the other displays might have more colors, whereas my color pallette is only 4 colors so we can super tightly pack the buffer). It took me a minute to realize what all the bit-twidling was about in the python implementation but thats all thats happening. Now we're in business, but I axed all the extra features in here I didn't need while I was debugging since this was such a wholesale rewrite, including support for rotations of the display, colors in the palette other than black and white, as well as dithering which I would like to add back in.
+
+
+ImageMagick is honestly so slick:
+
+```
+convert nixos-logo.svg \
+    -resize 400x300 \
+    -gravity center \
+    -extent 400x300 \
+    -monochrome \
+    test.png
+```
+
+That turned that square SVG with an alpha channel into a black and white 400x300 image maintaining the aspect ratio and adding padding as needed with the logo centered.
