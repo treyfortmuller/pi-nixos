@@ -17,6 +17,7 @@
   boot.loader.generic-extlinux-compatible.enable = true;
 
   networking = {
+    hostName = lib.mkDefault "pi-nixos";
     networkmanager.enable = true;
     usePredictableInterfaceNames = true;
 

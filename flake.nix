@@ -57,7 +57,8 @@
           modules = [
             self.nixosModules.default
             nixos-hardware.nixosModules.raspberry-pi-4
-            ./jerry/configuration.nix
+
+            # Using the jerry hardware config for now since I only have one pi
             ./jerry/hardware-configuration.nix
           ];
           specialArgs = {
