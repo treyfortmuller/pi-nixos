@@ -14,7 +14,7 @@
       nixpkgs,
       nixos-hardware,
       flake-utils,
-      # , nixpkgs-unstable
+      # nixpkgs-unstable
       ...
     }@inputs:
     let
@@ -49,12 +49,33 @@
         #   Estelle Costanza — George’s shrill, melodramatic mother.
         #   Uncle Leo — Jerry’s excitable uncle; “Jerry! Hello!”
 
+        # Baseline RPi 4 Model B, no peripheral devices enabled, no device tree overlays, vanilla
+        # as possible just to boot NixOS on a new system. SD installers of this OS config
+        # are useful for testing and bringup.
+        base = nixpkgs.lib.nixosSystem {
+          system = "aarch64-linux";
+          modules = [
+            self.nixosModules.default
+            nixos-hardware.nixosModules.raspberry-pi-4
+            ./jerry/configuration.nix
+            ./jerry/hardware-configuration.nix
+          ];
+          specialArgs = {
+            inherit inputs;
+          };
+        };
+
+        # Jerry is an RPi 4 Model B running a Pimoroni 4-color wHAT e-ink display for
+        # fun and profit, except there's no profit and I rewrote the e-ink controller driver
+        # from scratch so there's a lot of suffering too.
         jerry = nixpkgs.lib.nixosSystem {
           system = "aarch64-linux";
           modules = [
-            # self.nixosModules.default
+            self.nixosModules.default
             nixos-hardware.nixosModules.raspberry-pi-4
             ./jerry/configuration.nix
+            ./jerry/hardware-configuration.nix
+            ./modules/inky.nix
           ];
           specialArgs = {
             inherit inputs;
@@ -62,62 +83,31 @@
         };
       };
 
-      # nixosModules = {
-      #   # The base configuration to be depended on by privately-managed machines
-      #   default =
-      #     { ... }:
-      #     {
-      #       imports = [
-      #         home-manager.nixosModules.home-manager
-      #         ./base.nix
-      #         ./nvidia.nix
-      #       ];
+      nixosModules = {
+        default =
+          { ... }:
+          {
+            imports = [
+              ./modules/base.nix
+            ];
 
-      #       # final and prev, a.k.a. "self" and "super" respectively. This overlay
-      #       # makes 'pkgs.unstable' available.
-      #       nixpkgs.overlays = [
-      #         (final: prev: {
-      #           unstable = import nixpkgs-unstable {
-      #             system = final.system;
-      #             config.allowUnfree = true;
-      #           };
+            # final and prev, a.k.a. "self" and "super" respectively. This overlay
+            # makes 'pkgs.unstable' available.
+            nixpkgs.overlays = [
+              (final: prev: {
+                # If we need some unstable packages, can provide an overlay with unstable
+                # on top of 25.05, etc.
+                # 
+                # unstable = import nixpkgs-unstable {
+                #   system = final.system;
+                #   config.allowUnfree = true;
+                # };
 
-      #           # See https://github.com/NixOS/nixpkgs/issues/440951 for bambu-studio, was running into
-      #           # crashes using networking features in bambu-studio. 25.05's derivation builds it from source
-      #           # whereas this uses the appimage and is a more recent version of the slicer.
-      #           bambu-studio = prev.appimageTools.wrapType2 rec {
-      #             name = "BambuStudio";
-      #             pname = "bambu-studio";
-      #             version = "02.03.00.70";
-      #             ubuntu_version = "24.04_PR-8184";
-
-      #             src = prev.fetchurl {
-      #               url = "https://github.com/bambulab/BambuStudio/releases/download/v${version}/Bambu_Studio_ubuntu-${ubuntu_version}.AppImage";
-      #               sha256 = "sha256:60ef861e204e7d6da518619bd7b7c5ab2ae2a1bd9a5fb79d10b7c4495f73b172";
-      #             };
-
-      #             profile = ''
-      #               export SSL_CERT_FILE="${prev.cacert}/etc/ssl/certs/ca-bundle.crt"
-      #               export GIO_MODULE_DIR="${prev.glib-networking}/lib/gio/modules/"
-      #             '';
-
-      #             extraPkgs = pkgs: with pkgs; [
-      #               cacert
-      #               glib
-      #               glib-networking
-      #               gst_all_1.gst-plugins-bad
-      #               gst_all_1.gst-plugins-base
-      #               gst_all_1.gst-plugins-good
-      #               webkitgtk_4_1
-      #             ];
-      #           };
-      #         })
-
-      #         # TODO: anything good in here?
-      #         # nixpkgs-wayland.overlay
-      #       ];
-      #     };
-      #   };
+                # Here's where derivations for our own services are going to go...
+              })
+            ];
+          };
+        };
 
       formatter.x86_64-linux = nixpkgs.legacyPackages.x86_64-linux.nixpkgs-fmt;
     };
