@@ -76,7 +76,6 @@
             nixos-hardware.nixosModules.raspberry-pi-4
             ./jerry/configuration.nix
             ./jerry/hardware-configuration.nix
-            ./modules/inky.nix
           ];
           specialArgs = {
             inherit inputs;
@@ -88,8 +87,12 @@
         default =
           { ... }:
           {
+            # All modules should be added to default modules, all config that does not need to be
+            # enabled by default should be hidden behind a mkEnableOption. Simply importing a module
+            # should be a no-op to the resultant config, except for the absolute basics included in base.nix.
             imports = [
               ./modules/base.nix
+              ./modules/inky.nix
             ];
 
             # final and prev, a.k.a. "self" and "super" respectively. This overlay

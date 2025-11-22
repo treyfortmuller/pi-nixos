@@ -1,58 +1,65 @@
 { config, lib, pkgs, ... }:
-
+let
+  cfg = config.inky;
+in
 {
   imports = [ ];
 
-  users.users.pi = {
-    extraGroups = [ 
-      "gpio"
-      "i2c"
-      "spi"
-    ];
+  options.inky = {
+    enable = lib.mkEnableOption "inky e-ink displays";
   };
 
-  users.groups = { spi = { }; };
-  services.udev.extraRules = ''
-    # Add the spidev0.0 device to a group called spi (by default its root) so that our user
-    # can be added to the group and make use of the device without elevated perms.
-    SUBSYSTEM=="spidev", KERNEL=="spidev0.0", GROUP="spi", MODE="0660"
-  '';
-
-  environment.systemPackages = with pkgs; [
-    i2c-tools
-    libgpiod
-  ];
-
-  hardware.raspberry-pi."4" = {
-    gpio.enable = true;
-
-    i2c1 = {
-      enable = true;
-
-      # Actually unclear what this should be but I have not had issues reading
-      # from the Inky EEPROM via i2c so far.
-      frequency = null;
+  config = lib.mkIf cfg.enable {
+    users.users.pi = {
+      extraGroups = [
+        "gpio"
+        "i2c"
+        "spi"
+      ];
     };
-  };
 
-  # For the inky e-ink displays we need SPI comms with zero chip select pins enabled, our userspace library
-  # will handle chip selection for us. We should end up with SPI drivers show up in lsmod, and a SPI character
-  # device in /dev, but gpiochip0 lines 7 and 8 should not be claimed by a kernel driver.
-  # Here's the upstream overlay which achieves this, we're gonna drop it in verbatim, and only try 
-  # `hardware.raspberry-pi."4".apply-overlays-dtmerge.enable = true;` if we need to.
-  # 
-  # https://github.com/raspberrypi/linux/blob/rpi-6.1.y/arch/arm/boot/dts/overlays/spi0-0cs-overlay.dts
-  #
-  # Other configurations that the TV hat option applied...
-  # 
-  # hardware.raspberry-pi."4".apply-overlays-dtmerge.enable = true;
-  # hardware.deviceTree.filter = "*-rpi-4-*.dtb";
-  #
-  # This was adapted from: https://github.com/NixOS/nixos-hardware/blob/master/raspberry-pi/4/tv-hat.nix
-  hardware.deviceTree.overlays = [
-   {
-      name = "spi0-0cs.dtbo";
-      dtsText = "
+    users.groups = { spi = { }; };
+    services.udev.extraRules = ''
+      # Add the spidev0.0 device to a group called spi (by default its root) so that our user
+      # can be added to the group and make use of the device without elevated perms.
+      SUBSYSTEM=="spidev", KERNEL=="spidev0.0", GROUP="spi", MODE="0660"
+    '';
+
+    environment.systemPackages = with pkgs; [
+      i2c-tools
+      libgpiod
+    ];
+
+    hardware.raspberry-pi."4" = {
+      gpio.enable = true;
+
+      i2c1 = {
+        enable = true;
+
+        # Actually unclear what this should be but I have not had issues reading
+        # from the Inky EEPROM via i2c so far.
+        frequency = null;
+      };
+    };
+
+    # For the inky e-ink displays we need SPI comms with zero chip select pins enabled, our userspace library
+    # will handle chip selection for us. We should end up with SPI drivers show up in lsmod, and a SPI character
+    # device in /dev, but gpiochip0 lines 7 and 8 should not be claimed by a kernel driver.
+    # Here's the upstream overlay which achieves this, we're gonna drop it in verbatim, and only try 
+    # `hardware.raspberry-pi."4".apply-overlays-dtmerge.enable = true;` if we need to.
+    # 
+    # https://github.com/raspberrypi/linux/blob/rpi-6.1.y/arch/arm/boot/dts/overlays/spi0-0cs-overlay.dts
+    #
+    # Other configurations that the TV hat option applied...
+    # 
+    # hardware.raspberry-pi."4".apply-overlays-dtmerge.enable = true;
+    # hardware.deviceTree.filter = "*-rpi-4-*.dtb";
+    #
+    # This was adapted from: https://github.com/NixOS/nixos-hardware/blob/master/raspberry-pi/4/tv-hat.nix
+    hardware.deviceTree.overlays = [
+      {
+        name = "spi0-0cs.dtbo";
+        dtsText = "
       /dts-v1/;
       /plugin/;
 
@@ -110,6 +117,7 @@
               };
           };
       };";
-    }
-  ];
+      }
+    ];
+  };
 }
