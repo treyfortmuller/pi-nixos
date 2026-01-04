@@ -9,4 +9,9 @@ in
     # Public keys for which the corresponding private key should be able to decrypt the agefile.
     trey
   ];
+
+  # Personal tailscale network auth key, expires April 4, 2026
+  "tailscale-authkey.age".publicKeys = [
+    trey
+  ];
 }

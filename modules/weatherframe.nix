@@ -63,7 +63,7 @@ in
       type = types.str;
       default = "users";
       description = "Group under which the weatherframe service is run.";
-    };      
+    };
 
     apiKeyPath = mkOption {
       type = types.path;
