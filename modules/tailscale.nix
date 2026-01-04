@@ -56,10 +56,18 @@ in
       ];
 
       environment.shellAliases = {
-        # TODO: would be nice to keep shell completions for my alias
         ts = "tailscale";
+      }
+      // lib.optionalAttrs cfg.localTaildropPath {
         taildrop = "tailscale file get ${taildropPath}";
       };
+
+      # Map shell completions to the ts alias
+      # Run `complete -p tailscale` to discover the completion function bash is
+      # using for the original command.
+      programs.bash.interactiveShellInit = ''
+        complete -o default -F _fzf_path_completion ts
+      '';
 
       services.tailscale = {
         enable = true;
