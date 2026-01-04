@@ -62,6 +62,10 @@ in
         taildrop = "tailscale file get ${taildropPath}";
       };
 
+      # TODO: this still suffers from lazy loading of bash completions for the tailscale
+      # command, we have to run it once before the __start_tailscale function is registered,
+      # need to fix that. Maybe with complete_alias?
+      # 
       # Map shell completions to the ts alias
       # Run `complete -p tailscale` to discover the completion function bash is
       # using for the original command.
