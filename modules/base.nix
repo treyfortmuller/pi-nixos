@@ -27,7 +27,7 @@
   networking = {
     hostName = lib.mkDefault "pi-nixos";
     networkmanager.enable = true;
-    usePredictableInterfaceNames = true;
+    usePredictableInterfaceNames = lib.mkDefault true;
 
     # Static IP on the physical ethernet port
     interfaces.end0.ipv4.addresses = [

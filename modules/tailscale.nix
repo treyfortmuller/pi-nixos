@@ -32,6 +32,9 @@ in
       '';
       example = "/foo/bar/baz.key";
     };
+
+    # TODO: add an option for a default taildrop path
+    # taildropPath = mkOption { }
   };
 
   config = mkIf cfg.enable {
@@ -40,7 +43,11 @@ in
     ];
 
     environment.shellAliases = {
+      # TODO: would be nice to keep shell completions for my alias
       ts = "tailscale";
+
+      # TODO:
+      # taildrop = "tailscale file get ${cfg.taildropPath}";
     };
 
     services.tailscale = {
