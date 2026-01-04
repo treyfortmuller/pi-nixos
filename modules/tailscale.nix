@@ -66,7 +66,7 @@ in
       # Run `complete -p tailscale` to discover the completion function bash is
       # using for the original command.
       programs.bash.interactiveShellInit = ''
-        complete -o default -F _fzf_path_completion ts
+        complete -o default -F __start_tailscale ts
       '';
 
       services.tailscale = {
