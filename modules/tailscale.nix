@@ -39,6 +39,24 @@ in
         the creation of the taildrop alias to quickly grab files from the taildrop inbox.
       '';
     };
+
+    hostName = mkOption {
+      type = types.nullOr types.str;
+      default = null;
+      description = ''
+        hostname to use on the tailnet instead of the one provided by the OS.
+        Null will use the hostname of the machine.
+      '';
+    };
+
+    operator = mkOption {
+      type = types.nullOr types.str;
+      default = null;
+      description = ''
+        Unix username to allow to operate on tailscaled without sudo. Null indicates
+        that sudo must be used by all users to make changes or use taildrop.
+      '';
+    };
   };
 
   config =
@@ -80,9 +98,14 @@ in
         # Allows tailscale's UDP port through our firewall.
         openFirewall = true;
 
-        # Enable tailscale SSH access to this host automatically.
+        # Note this are only relevant to the automatic login provided by the authKeyFile.
         extraUpFlags = [
+          # Enable tailscale SSH access to this host automatically.
           "--ssh"
+        ] ++ lib.optionals (!isNull cfg.hostName) [
+          "--hostname ${cfg.hostName}"
+        ] ++ lib.optionals (!isNull cfg.operator) [
+          "--operator ${cfg.operator}"
         ];
       };
     };

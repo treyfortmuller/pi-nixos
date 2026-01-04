@@ -50,6 +50,8 @@
       enable = true;
       authKeyFile = config.age.secrets.tailscale.path;
       localTaildropPath = true;
+      operator = config.users.users.pi.name;
+      hostName = "serenity-${config.networking.hostName}";
     };
   };
 
