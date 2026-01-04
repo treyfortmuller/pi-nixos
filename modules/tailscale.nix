@@ -33,34 +33,45 @@ in
       example = "/foo/bar/baz.key";
     };
 
-    # TODO: add an option for a default taildrop path
-    # taildropPath = mkOption { }
+    localTaildropPath = mkEnableOption "" // {
+      description = ''
+        Enables the creation of a $HOME/taildrop directory for the pi user, and the
+        the creation of the taildrop alias to quickly grab files from the taildrop inbox.
+      '';
+    };
   };
 
-  config = mkIf cfg.enable {
-    environment.systemPackages = [
-      pkgs.tailscale
-    ];
-
-    environment.shellAliases = {
-      # TODO: would be nice to keep shell completions for my alias
-      ts = "tailscale";
-
-      # TODO:
-      # taildrop = "tailscale file get ${cfg.taildropPath}";
-    };
-
-    services.tailscale = {
-      enable = true;
-      authKeyFile = cfg.authKeyFile;
-
-      # Allows tailscale's UDP port through our firewall.
-      openFirewall = true;
-
-      # Enable tailscale SSH access to this host automatically.
-      extraUpFlags = [
-        "--ssh"
+  config =
+    let
+      piUser = config.users.users.pi;
+      taildropPath = "${piUser.home}/taildrop";
+    in
+    mkIf cfg.enable {
+      environment.systemPackages = [
+        pkgs.tailscale
       ];
+
+      systemd.tmpfiles.rules = lib.optionals cfg.localTaildropPath [
+        "d ${taildropPath} - ${piUser.name} users - -"
+      ];
+
+      environment.shellAliases = {
+        # TODO: would be nice to keep shell completions for my alias
+        ts = "tailscale";
+        taildrop = "tailscale file get ${taildropPath}";
+      };
+
+      services.tailscale = {
+        enable = true;
+        authKeyFile = cfg.authKeyFile;
+
+        # Allows tailscale's UDP port through our firewall.
+        openFirewall = true;
+
+        # Enable tailscale SSH access to this host automatically.
+        extraUpFlags = [
+          "--ssh"
+        ];
+      };
     };
-  };
 }
