@@ -95,16 +95,18 @@ in
         # Note this are only relevant to the automatic login provided by the authKeyFile. Be aware
         # that extraUpFlags requires multi-word arguments to be included in the list separately,
         # the args are each passed through lib.escapeShellArgs:
-        # 
+        #
         # nix-repl> lib.escapeShellArgs [ "--ssh" "--hostname foobar" "--operator my-user" ]
         # "--ssh '--hostname foobar' '--operator my-user'"
         extraUpFlags = [
           # Enable tailscale SSH access to this host automatically.
           "--ssh"
-        ] ++ lib.optionals (!isNull cfg.hostName) [
-          "--hostname" 
+        ]
+        ++ lib.optionals (!isNull cfg.hostName) [
+          "--hostname"
           "${cfg.hostName}"
-        ] ++ lib.optionals (!isNull cfg.operator) [
+        ]
+        ++ lib.optionals (!isNull cfg.operator) [
           "--operator"
           "${cfg.operator}"
         ];
