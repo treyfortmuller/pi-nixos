@@ -8,6 +8,16 @@ There's notes on bootstrapping this NixOS configuration from the mainline NixOS 
 
 TODO
 
+### Tailscale
+
+I use tailscale for remote access. I shipped a module which automates login (`tailscale up`) using tailscale "auth keys". They expire every 90 days. To make a new one you can head to the tailscale admin console -> Settings -> Keys, and add a new auth key. I configure these auth keys to be "reusable" so I can ship them to more than one host, but thats innately less secure. I store the auth keys themselves in 1password and then encrypt them, and deploy them using `agenix`. See below for details on secrets management.
+
+Tailscale SSH is enabled by default if auto connect is enabled by providing an auth key via `agenix`.
+
+> Note: One of the advantages that tailscale SSH offers is the ability to authenticate without having to ship around SSH keys. That advantage is defeated by the use of agenix since the SSH private key imperatively delivered to the the running system is used to decrypt the age files. In the future I can tackle a way to do secrets management without shipping around SSH keys and get this advantage back.
+
+Auth keys must be manually rotated every 90 days to keep us autoconnected to the tailscale network.
+
 ### Secrets management
 
 I'm using [`agenix`](https://github.com/ryantm/agenix) for declarative secrets management. The TLDR is that the `agenix`
