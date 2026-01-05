@@ -130,6 +130,7 @@
               ./modules/dev.nix
               ./modules/inky.nix
               ./modules/weatherframe.nix
+              ./modules/tailscale.nix
             ];
 
             # final and prev, a.k.a. "self" and "super" respectively. This overlay
