@@ -84,6 +84,8 @@ in
       # command, we have to run it once before the __start_tailscale function is registered,
       # need to fix that. Maybe with complete_alias?
       # 
+      # TODO: do the same for the taildrop alias?
+      # 
       # Map shell completions to the ts alias
       # Run `complete -p tailscale` to discover the completion function bash is
       # using for the original command.
@@ -98,14 +100,21 @@ in
         # Allows tailscale's UDP port through our firewall.
         openFirewall = true;
 
-        # Note this are only relevant to the automatic login provided by the authKeyFile.
+        # Note this are only relevant to the automatic login provided by the authKeyFile. Be aware
+        # that extraUpFlags requires multi-word arguments to be included in the list separately,
+        # the args are each passed through lib.escapeShellArgs:
+        # 
+        # nix-repl> lib.escapeShellArgs [ "--ssh" "--hostname foobar" "--operator my-user" ]
+        # "--ssh '--hostname foobar' '--operator my-user'"
         extraUpFlags = [
           # Enable tailscale SSH access to this host automatically.
           "--ssh"
         ] ++ lib.optionals (!isNull cfg.hostName) [
-          "--hostname ${cfg.hostName}"
+          "--hostname" 
+          "${cfg.hostName}"
         ] ++ lib.optionals (!isNull cfg.operator) [
-          "--operator ${cfg.operator}"
+          "--operator"
+          "${cfg.operator}"
         ];
       };
     };
