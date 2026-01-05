@@ -80,17 +80,9 @@ in
         taildrop = "tailscale file get ${taildropPath}";
       };
 
-      # TODO: this still suffers from lazy loading of bash completions for the tailscale
-      # command, we have to run it once before the __start_tailscale function is registered,
-      # need to fix that. Maybe with complete_alias?
-      # 
-      # TODO: do the same for the taildrop alias?
-      # 
-      # Map shell completions to the ts alias
-      # Run `complete -p tailscale` to discover the completion function bash is
-      # using for the original command.
       programs.bash.interactiveShellInit = ''
-        complete -o default -F __start_tailscale ts
+        complete -F _complete_alias ts
+        complete -F _complete_alias taildrop
       '';
 
       services.tailscale = {

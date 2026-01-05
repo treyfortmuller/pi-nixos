@@ -70,6 +70,13 @@
     SYSTEMD_EDITOR = "${pkgs.vim}/bin/vim";
   };
 
+  environment.interactiveShellInit = ''
+    # Source 'complete_alias' so we can generate lazy-loaded completions for our shell aliases
+    # Ex:
+    #   complete -F _complete_alias myalias1
+    . ${pkgs.complete-alias}/bin/complete_alias
+  '';
+
   # Select internationalisation properties.
   i18n.defaultLocale = "en_US.UTF-8";
 
