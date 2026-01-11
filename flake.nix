@@ -130,6 +130,7 @@
               ./modules/dev.nix
               ./modules/inky.nix
               ./modules/weatherframe.nix
+              ./modules/tailscale.nix
             ];
 
             # TODO: aliases so I don't have to traverse such a deep attribute tree, probably
