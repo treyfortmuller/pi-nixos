@@ -2,7 +2,7 @@
   description = "NixOS on RPi, targeting RPi4 Model B for now.";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
     # nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
     nixos-hardware.url = "github:NixOS/nixos-hardware/master";
     flake-utils.url = "github:numtide/flake-utils";
@@ -161,21 +161,25 @@
             };
 
 
-            # TODO: restricting to cross-compilation for now...
+            # Don't attempt to cross compile for now, enforce that the build and host
+            # platform are both aarch64
             nixpkgs.hostPlatform = "aarch64-linux";
-            nixpkgs.buildPlatform = "x86_64-linux";
+            nixpkgs.buildPlatform = "aarch64-linux";
 
             # final and prev, a.k.a. "self" and "super" respectively. This overlay
             # makes 'pkgs.unstable' available.
             nixpkgs.overlays = [
               (final: prev: {
                 # If we need some unstable packages, can provide an overlay with unstable
-                # on top of 25.05, etc.
+                # on top of the pinned stable version, etc.
                 #
                 # unstable = import nixpkgs-unstable {
                 #   system = final.system;
                 #   config.allowUnfree = true;
                 # };
+
+                makeModulesClosure = x:
+                  prev.makeModulesClosure (x // { allowMissing = true; });
 
                 # TODO: might be nicer to use the overlays flake output?
 
@@ -194,3 +198,30 @@
       formatter.x86_64-linux = nixpkgs.legacyPackages.x86_64-linux.nixfmt-tree;
     };
 }
+
+
+# TODO (tff): here's what Im running now:
+# nix build .#nixosConfigurations.jerry.config.system.build.images.sd-card --max-jobs 0 --eval-store auto --store ssh-ng://eu.nixbuild.net
+
+# That ended up with what looks like a real build failure:
+# modprobe: FATAL: Module sun4i-drm not found in directory /nix/store/x1izpcma5w86i7sicawbz2cn2ydvk846-linux-rpi-6.6.51-stable_20241008-modules/lib/modules/6.6.51
+
+# Now trying to update to 25.11 and see what happens
+# 
+# Somebody has hit this before:https://github.com/NixOS/nixpkgs/issues/154163
+# and https://github.com/NixOS/nixpkgs/issues/111683#issuecomment-968435872
+
+# Upgrading to 25.11 got me here: linux-rpi> modprobe: FATAL: Module dw-hdmi not found in directory /nix/store/fbd6pni3izld7jhdq5db02xq03ardswn-linux-rpi-6.12.47-stable_20250916-modules/lib/modules/6.12.47
+
+# This is a kernel configuration issue, see here for where we require the kernel modules: https://github.com/NixOS/nixpkgs/blob/996536a2301a829b60c1deba51b5533d112f2942/nixos/modules/profiles/all-hardware.nix#L68
+
+# Here's the workaround I'm going to apply:
+
+# https://github.com/NixOS/nixpkgs/issues/126755#issuecomment-869149243
+
+# 
+# Ok we built an SD image!
+#
+# nix copy --from ssh-ng://eu.nixbuild.net /nix/store/w16h6jfvg47nqgxp50qzk42dgmrz5azi-nixos-image-sd-card-25.11.20260107.d351d06-aarch64-linux.img.zst
+#
+# Pulling it down to my local store now, I killed ~8 CPU hours building this thing (counting all the erroring out builds)
