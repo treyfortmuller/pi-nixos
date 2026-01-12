@@ -2,7 +2,7 @@
   description = "NixOS on RPi, targeting RPi4 Model B for now.";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
     # nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
     nixos-hardware.url = "github:NixOS/nixos-hardware/master";
     flake-utils.url = "github:numtide/flake-utils";
@@ -60,7 +60,6 @@
           packages = with pkgs; [
             caligula
             nixfmt-tree
-            # agenix-cli
             agenix.packages.${system}.default
           ];
         };
@@ -115,7 +114,7 @@
 
       nixosModules = {
         default =
-          { ... }:
+          { config, lib, ... }:
           {
             # All modules should be added to default modules, all config that does not need to be
             # enabled by default should be hidden behind a mkEnableOption. Simply importing a module
@@ -133,26 +132,80 @@
               ./modules/tailscale.nix
             ];
 
-            # final and prev, a.k.a. "self" and "super" respectively. This overlay
-            # makes 'pkgs.unstable' available.
-            nixpkgs.overlays = [
-              (final: prev: {
-                # If we need some unstable packages, can provide an overlay with unstable
-                # on top of 25.05, etc.
+            # nixos-generators is pretty much totally rolled into upstream nixpkgs as far as I can tell,
+            # but one nice this it does is alias the image formats we can build such that we don't have to
+            # remember how to traverse a huge attribute tree to get to the derivation we want.
+            #
+            # e.g. config.formats.sd-card -> config.system.build.images.sd-card;
+            options = {
+              formats = lib.mkOption {
+                type = lib.types.lazyAttrsOf lib.types.raw;
+                default = {
+                  toplevel = config.system.build.toplevel;
+                  qemu = config.system.build.images.qemu;
+                  sd-card = config.system.build.images.sd-card;
+                };
+                description = "Aliases to the supported image formats we can build for this NixOS configuration.";
+                readOnly = true;
+              };
+            };
+
+            config = {
+              # Is this shit not the coolest? These are modules to include only during the build of these output formats.
+              # See .#nixosConfigurations.<foo>.config.system.build.images. for the full list of supported image format.
+              image.modules = {
+                # Note, each image format has a "passthru.config" so you can probe on the repl at the "final" configuration
+                # after the config has been extended with these modules.
                 #
-                # unstable = import nixpkgs-unstable {
-                #   system = final.system;
-                #   config.allowUnfree = true;
-                # };
+                # i.e. base.config.system.build.images.qemu.passthru.config...
+                #
+                # TODO: I actually need KVM-enabled aarch64 builds in nixbuild.net for this
+                qemu =
+                  { modulesPath, ... }:
+                  {
+                    imports = [ (modulesPath + "/virtualisation/qemu-vm.nix") ];
+                    virtualisation = {
+                      cores = 2;
+                      memorySize = 2048;
+                    };
+                  };
 
-                # TODO: might be nicer to use the overlays flake output?
+                sd-card =
+                  { config, lib, ... }:
+                  {
+                    # Don't attempt to cross compile for now, enforce that the build and host
+                    # platform are both aarch64
+                    nixpkgs.hostPlatform = "aarch64-linux";
+                    nixpkgs.buildPlatform = "aarch64-linux";
+                  };
+              };
 
-                # Here's where derivations for our own services are going to go...
-                weatherframe = weatherframe.packages.${final.system}.default;
-                openwx = openwx.packages.${final.system}.default;
-                tatted = tatted.packages.${final.system}.default;
-              })
-            ];
+              # final and prev, a.k.a. "self" and "super" respectively. This overlay
+              # makes 'pkgs.unstable' available.
+              nixpkgs.overlays = [
+                (final: prev: {
+                  # If we need some unstable packages, can provide an overlay with unstable
+                  # on top of the pinned stable version, etc.
+                  #
+                  # unstable = import nixpkgs-unstable {
+                  #   system = final.system;
+                  #   config.allowUnfree = true;
+                  # };
+
+                  # See this ticket for more details: https://github.com/NixOS/nixpkgs/issues/126755#issuecomment-869149243
+                  # The RPi kernel will be missing modules that are required by a typical NixOS build, we can safely
+                  # ignore that.
+                  makeModulesClosure = x: prev.makeModulesClosure (x // { allowMissing = true; });
+
+                  # Here's where derivations for our own services are going to go...
+                  weatherframe = weatherframe.packages.${final.system}.default;
+                  openwx = openwx.packages.${final.system}.default;
+                  tatted = tatted.packages.${final.system}.default;
+                })
+              ];
+
+            };
+
           };
       };
 
