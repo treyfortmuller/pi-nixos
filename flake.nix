@@ -60,7 +60,6 @@
           packages = with pkgs; [
             caligula
             nixfmt-tree
-            # agenix-cli
             agenix.packages.${system}.default
           ];
         };
@@ -133,62 +132,77 @@
               ./modules/tailscale.nix
             ];
 
-            # TODO: aliases so I don't have to traverse such a deep attribute tree, probably
-            # would want to do this via a readOnly option in the base module.
-            # 
-            # build-toplevel => config.system.build.toplevel;
-            # build-qemu => config.system.build.images.qemu;
-            # build-sd-card => config.system.build.images.sd-card;
+            # nixos-generators is pretty much totally rolled into upstream nixpkgs as far as I can tell,
+            # but one nice this it does is alias the image formats we can build such that we don't have to
+            # remember how to traverse a huge attribute tree to get to the derivation we want.
+            #
+            # e.g. config.formats.sd-card -> config.system.build.images.sd-card;
             options = {
-              serenityBuilds = lib.mkOption {
+              formats = lib.mkOption {
                 type = lib.types.lazyAttrsOf lib.types.raw;
                 default = {
-                  buildToplevel = config.system.build.toplevel;
-                  buildQemu = config.system.build.images.qemu;
-                  buildSdCard = config.system.build.images.sd-card;
+                  toplevel = config.system.build.toplevel;
+                  qemu = config.system.build.images.qemu;
+                  sd-card = config.system.build.images.sd-card;
                 };
-                description = "aliases";
+                description = "Aliases to the supported image formats we can build for this NixOS configuration.";
                 readOnly = true;
               };
             };
 
             config = {
-            image.modules = {
-              # nixosConfigurations.base.config.system.build.images.qemu.passthru.config.services.openssh.enable
-              qemu = { config, lib, ... }: {
-                services.openssh.enable = lib.mkForce false;
-              };
-            };
-
-
-            # Don't attempt to cross compile for now, enforce that the build and host
-            # platform are both aarch64
-            nixpkgs.hostPlatform = "aarch64-linux";
-            nixpkgs.buildPlatform = "aarch64-linux";
-
-            # final and prev, a.k.a. "self" and "super" respectively. This overlay
-            # makes 'pkgs.unstable' available.
-            nixpkgs.overlays = [
-              (final: prev: {
-                # If we need some unstable packages, can provide an overlay with unstable
-                # on top of the pinned stable version, etc.
+              # Is this shit not the coolest? These are modules to include only during the build of these output formats.
+              # See .#nixosConfigurations.<foo>.config.system.build.images. for the full list of supported image format.
+              image.modules = {
+                # Note, each image format has a "passthru.config" so you can probe on the repl at the "final" configuration
+                # after the config has been extended with these modules.
                 #
-                # unstable = import nixpkgs-unstable {
-                #   system = final.system;
-                #   config.allowUnfree = true;
-                # };
+                # i.e. base.config.system.build.images.qemu.passthru.config...
+                #
+                # TODO: I actually need KVM-enabled aarch64 builds in nixbuild.net for this
+                qemu =
+                  { modulesPath, ... }:
+                  {
+                    imports = [ (modulesPath + "/virtualisation/qemu-vm.nix") ];
+                    virtualisation = {
+                      cores = 2;
+                      memorySize = 2048;
+                    };
+                  };
 
-                makeModulesClosure = x:
-                  prev.makeModulesClosure (x // { allowMissing = true; });
+                sd-card =
+                  { config, lib, ... }:
+                  {
+                    # Don't attempt to cross compile for now, enforce that the build and host
+                    # platform are both aarch64
+                    nixpkgs.hostPlatform = "aarch64-linux";
+                    nixpkgs.buildPlatform = "aarch64-linux";
+                  };
+              };
 
-                # TODO: might be nicer to use the overlays flake output?
+              # final and prev, a.k.a. "self" and "super" respectively. This overlay
+              # makes 'pkgs.unstable' available.
+              nixpkgs.overlays = [
+                (final: prev: {
+                  # If we need some unstable packages, can provide an overlay with unstable
+                  # on top of the pinned stable version, etc.
+                  #
+                  # unstable = import nixpkgs-unstable {
+                  #   system = final.system;
+                  #   config.allowUnfree = true;
+                  # };
 
-                # Here's where derivations for our own services are going to go...
-                weatherframe = weatherframe.packages.${final.system}.default;
-                openwx = openwx.packages.${final.system}.default;
-                tatted = tatted.packages.${final.system}.default;
-              })
-            ];
+                  # See this ticket for more details: https://github.com/NixOS/nixpkgs/issues/126755#issuecomment-869149243
+                  # The RPi kernel will be missing modules that are required by a typical NixOS build, we can safely
+                  # ignore that.
+                  makeModulesClosure = x: prev.makeModulesClosure (x // { allowMissing = true; });
+
+                  # Here's where derivations for our own services are going to go...
+                  weatherframe = weatherframe.packages.${final.system}.default;
+                  openwx = openwx.packages.${final.system}.default;
+                  tatted = tatted.packages.${final.system}.default;
+                })
+              ];
 
             };
 
@@ -198,30 +212,3 @@
       formatter.x86_64-linux = nixpkgs.legacyPackages.x86_64-linux.nixfmt-tree;
     };
 }
-
-
-# TODO (tff): here's what Im running now:
-# nix build .#nixosConfigurations.jerry.config.system.build.images.sd-card --max-jobs 0 --eval-store auto --store ssh-ng://eu.nixbuild.net
-
-# That ended up with what looks like a real build failure:
-# modprobe: FATAL: Module sun4i-drm not found in directory /nix/store/x1izpcma5w86i7sicawbz2cn2ydvk846-linux-rpi-6.6.51-stable_20241008-modules/lib/modules/6.6.51
-
-# Now trying to update to 25.11 and see what happens
-# 
-# Somebody has hit this before:https://github.com/NixOS/nixpkgs/issues/154163
-# and https://github.com/NixOS/nixpkgs/issues/111683#issuecomment-968435872
-
-# Upgrading to 25.11 got me here: linux-rpi> modprobe: FATAL: Module dw-hdmi not found in directory /nix/store/fbd6pni3izld7jhdq5db02xq03ardswn-linux-rpi-6.12.47-stable_20250916-modules/lib/modules/6.12.47
-
-# This is a kernel configuration issue, see here for where we require the kernel modules: https://github.com/NixOS/nixpkgs/blob/996536a2301a829b60c1deba51b5533d112f2942/nixos/modules/profiles/all-hardware.nix#L68
-
-# Here's the workaround I'm going to apply:
-
-# https://github.com/NixOS/nixpkgs/issues/126755#issuecomment-869149243
-
-# 
-# Ok we built an SD image!
-#
-# nix copy --from ssh-ng://eu.nixbuild.net /nix/store/w16h6jfvg47nqgxp50qzk42dgmrz5azi-nixos-image-sd-card-25.11.20260107.d351d06-aarch64-linux.img.zst
-#
-# Pulling it down to my local store now, I killed ~8 CPU hours building this thing (counting all the erroring out builds)

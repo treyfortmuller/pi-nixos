@@ -2,6 +2,22 @@
 
 NixOS configurations for embedded Linux projects. Currently I'm only supporting the RPi 4 Model B, targeting aarch64.
 
+### Building system closures
+
+Thats what we're here for. I haven't looked into cross compilation for these configs yet, so for now I'm using [nixbuild.net](https://nixbuild.net/) for their pay-to-play aarch64 builders, and its pretty sweet. Once those remote builders are up and running (make sure you've got an aarch64 builder set up - more details [here](https://github.com/treyfortmuller/nixos-config?tab=readme-ov-file#nixbuildnet)) you can build an sd-card `.img` file with:
+
+```bash
+nix build .#nixosConfigurations.jerry.config.formats.sd-card --max-jobs 0 --print-build-logs --print-out-paths
+```
+
+Then rip it to an SD card with `caligula burn` (its shipped with the devShell of this flake). Plug it into Pi, boot, profit.
+
+#### Qemu
+
+You're only as good as SITL simulation, and everybody knows it.
+
+TODO: nixbuild.net does not currently support KVM-enabled builds for aarch64, they do for x86. So the approach implemented here doesn't build remotely. A work-around would be to make a whole new nixosConfiguration for the qemu VMs.
+
 ### Install
 
 There's notes on bootstrapping this NixOS configuration from the mainline NixOS aarch64 SD card installer in the `notes/` directory. Below, I'll walk myself through building and booting from an SD card installer built from these `nixosConfigurations`. I have a generic "`base`" configuration with none of the RPi peripherals turned on, but there's a user with a default password, NetworkManager, OpenSSH, a static IP configured on the ethernet port, and other conveniences.
